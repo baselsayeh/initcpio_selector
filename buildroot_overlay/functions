@@ -1,0 +1,78 @@
+#!/bin/sh
+
+__msg() {
+    echo "$*"
+}
+_msg() {
+    ! (echo "$quiet" | grep -q -E "[Yy1]") && __msg "$*"
+}
+fatal() {
+    __msg "[F] $*"
+    sleep 5
+    exit 1
+}
+error() {
+    __msg "[E] $*"
+    sleep 5
+}
+warn() {
+    _msg "[W] $*"
+}
+info() {
+    _msg "[I] $*"
+}
+
+load_cmdline_to_vars() {
+    TEMPFILE=$(mktemp)
+    #load linux vars
+    #needed mainly for root
+    cat "$1" | while read -d " " p; do
+            echo "export \"$p\"" >> "$TEMPFILE"
+    done
+    . "$TEMPFILE"
+    rm -f "$TEMPFILE"
+}
+
+__wait_and_mount() {
+    ROOT="$1"
+    MNTPOINT="$2"
+    MAXCOUNT=$3
+
+    COUNT=0
+    while true; do
+        mount -o ro "$ROOT" "$MNTPOINT"
+        RET=$?
+        if [ "$RET" -ne 0 ] && [ $COUNT -lt $MAXCOUNT ]; then
+            info "Waiting for $ROOT ..."
+            sleep 10
+            COUNT=$((COUNT + 1))
+            continue
+        fi
+        [ "$RET" -eq 0 ] && break
+
+        return 1
+    done
+
+    return 0
+}
+
+__try_to_extract_cpio() {
+    FILE="$1"
+    OUT="$2"
+
+    TYPE=$(file -b --mime-type "$FILE" | cut -d ";" -f1 | tr '[:upper:]' '[:lower:]')
+    if [ "$TYPE" = "application/zstd" ]; then
+        zstd -dc "$FILE" | cpio -idm --no-preserve-owner -D "$OUT"
+    elif [ "$TYPE" = "application/x-xz" ]; then
+        xz -dc "$FILE" | cpio -idm --no-preserve-owner -D "$OUT"
+    elif [ "$TYPE" = "application/gzip" ]; then
+        gzip -dc "$FILE" | cpio -idm --no-preserve-owner -D "$OUT"
+    elif [ "$TYPE" = "application/x-cpio" ]; then
+        cat "$FILE" | cpio -idm --no-preserve-owner -D "$OUT"
+    else
+        error "Unknown init format: $TYPE, output from file: $(file $FILE)"
+        return 1
+    fi
+
+    return 0
+}
