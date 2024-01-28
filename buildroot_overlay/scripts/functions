@@ -27,6 +27,8 @@ load_cmdline_to_vars() {
     #load linux vars
     #needed mainly for root
     cat "$1" | while read -d " " p; do
+            echo -ne "$p" | grep -q "\."
+            [ $? -eq 0 ] && continue
             echo "export \"$p\"" >> "$TEMPFILE"
     done
     . "$TEMPFILE"
