@@ -25,7 +25,7 @@ def clear_screen():
 def draw_choices(index):
     for choice in choices:
         if index == choices.index(choice):
-            print("\033[41m", ">", choice, "\033[0m")
+            print("\033[41m", ">", choice, "<", "\033[0m")
         else:
             print("  ", choice)
     print("")
