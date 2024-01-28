@@ -13,6 +13,9 @@ MOUNTPOINT="/mnt"
 # Load Linux cmdline to variables
 load_cmdline_to_vars "/proc/cmdline"
 
+#Run init.d scripts
+run-parts -a "init" "/scripts/init.d/"
+
 #try to mount root
 [ -z "${root}" ] && fatal "root is not found or zero!"
 
