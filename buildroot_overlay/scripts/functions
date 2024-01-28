@@ -26,7 +26,10 @@ load_cmdline_to_vars() {
     TEMPFILE=$(mktemp)
     #load linux vars
     #needed mainly for root
-    cat "$1" | while read -d " " p; do
+
+    #The extra space will make sure that read does not fail at the last param
+    { cat "$1"; echo -ne " "; } | while read -r -d " " p; do
+            [ -z "$p" ] && continue
             echo -ne "$p" | grep -q "\."
             [ $? -eq 0 ] && continue
             echo "export \"$p\"" >> "$TEMPFILE"
