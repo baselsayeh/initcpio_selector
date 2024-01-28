@@ -14,6 +14,7 @@ To use it, you need to build buildroot with multiple packages included, mainly:
 - `zstd` utility
 - `cpio` utility
 - `file` utility
+- `kbd` (optional) for font changing
 
 and then build with `make BR2_ROOTFS_OVERLAY=/path/to/buildroot_overlay`
 
