@@ -35,13 +35,49 @@ load_cmdline_to_vars() {
     rm -f "$TEMPFILE"
 }
 
+__resolve_uuid_to_block() {
+    #Get the uuid
+    UUID="$1"
+
+    #BLKSUUIDS=$(blkid | sed -n 's/\/dev\/\(.*\): .*UUID=\"\([^\"]*\)\".*/\1|\2/p')
+    BLKSUUIDS=$(blkid | sed -n 's/\(.*\): .*UUID=\"\([^\"]*\)\".*/\1|\2/p')
+    echo "$BLKSUUIDS" | while read -r p || [ -n "$p" ]; do
+        BLKPATH=$(echo -ne "$BLKSUUIDS" | cut -d "|" -f 1)
+        BLKUUID=$(echo -ne "$BLKSUUIDS" | cut -d "|" -f 2)
+        if [ "$BLKUUID" = "$UUID" ]; then
+            echo -ne "$BLKPATH"
+            #return 0
+        fi
+    done
+
+    #return 1
+}
+
 __wait_and_mount() {
     ROOT="$1"
     MNTPOINT="$2"
     MAXCOUNT=$3
 
     COUNT=0
+
+    echo "$ROOT" | grep -iq "UUID="
+    [ $? -eq 0 ] && info "UUID detected, will try to resolve to block"
+
     while true; do
+        #TODO: Maybe check for PART UUID
+        echo "$ROOT" | grep -iq "UUID="
+        if [ $? -eq 0 ]; then
+            UUID=$(echo -ne "$ROOT" | sed -e s/^[Uu][Uu][Ii][Dd]=//)
+
+            NEWROOT=$(__resolve_uuid_to_block "$UUID")
+            if [ -z "$NEWROOT" ]; then
+                warn "Unable to resolve UUID $UUID"
+            else
+                info "Resolved $UUID to $NEWROOT"
+                ROOT="$NEWROOT"
+            fi
+        fi
+
         mount -o ro "$ROOT" "$MNTPOINT"
         RET=$?
         if [ "$RET" -ne 0 ] && [ $COUNT -lt $MAXCOUNT ]; then
