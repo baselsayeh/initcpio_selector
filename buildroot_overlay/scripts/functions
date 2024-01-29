@@ -45,11 +45,28 @@ __resolve_uuid_to_block() {
     #BLKSUUIDS=$(blkid | sed -n 's/\/dev\/\(.*\): .*UUID=\"\([^\"]*\)\".*/\1|\2/p')
     BLKSUUIDS=$(blkid | sed -n 's/\(.*\): .*UUID=\"\([^\"]*\)\".*/\1|\2/p')
     echo "$BLKSUUIDS" | while read -r p || [ -n "$p" ]; do
-        BLKPATH=$(echo -ne "$BLKSUUIDS" | cut -d "|" -f 1)
-        BLKUUID=$(echo -ne "$BLKSUUIDS" | cut -d "|" -f 2)
+        BLKPATH=$(echo -ne "$p" | cut -d "|" -f 1)
+        BLKUUID=$(echo -ne "$p" | cut -d "|" -f 2)
         if [ "$BLKUUID" = "$UUID" ]; then
             echo -ne "$BLKPATH"
-            #return 0
+            return
+        fi
+    done
+
+    #return 1
+}
+__resolve_label_to_block() {
+    #Get the label without LABEL=
+    LABEL="$1"
+
+    #BLKSUUIDS=$(blkid | sed -n 's/\/dev\/\(.*\): .*UUID=\"\([^\"]*\)\".*/\1|\2/p')
+    BLKSLABELS=$(blkid | sed -n 's/\(.*\): .*LABEL=\"\([^\"]*\)\".*/\1|\2/p')
+    echo "$BLKSLABELS" | while read -r p || [ -n "$p" ]; do
+        BLKPATH=$(echo -ne "$p" | cut -d "|" -f 1)
+        BLKLABEL=$(echo -ne "$p" | cut -d "|" -f 2)
+        if [ "$BLKLABEL" = "$LABEL" ]; then
+            echo -ne "$BLKPATH"
+            return
         fi
     done
 
@@ -63,20 +80,27 @@ __wait_and_mount() {
 
     COUNT=0
 
-    echo "$ROOT" | grep -iq "UUID="
-    [ $? -eq 0 ] && info "UUID detected, will try to resolve to block"
+    #TODO: Maybe check for PART UUID
+    RESOLVER=
+    if `echo "$ROOT" | grep -iq "UUID="`; then
+        info "UUID detected, will try to resolve to block"
+        OLDROOT=$(echo -ne "$ROOT" | sed -e s/^[Uu][Uu][Ii][Dd]=//)
+
+        RESOLVER=__resolve_uuid_to_block
+    elif `echo "$ROOT" | grep -iq "LABEL="`; then
+        info "LABEL detected, will try to resolve to block"
+        OLDROOT=$(echo -ne "$ROOT" | sed -e s/^[Ll][Aa][Bb][Ee][Ll]=//)
+
+        RESOLVER=__resolve_label_to_block
+    fi
 
     while true; do
-        #TODO: Maybe check for PART UUID
-        echo "$ROOT" | grep -iq "UUID="
-        if [ $? -eq 0 ]; then
-            UUID=$(echo -ne "$ROOT" | sed -e s/^[Uu][Uu][Ii][Dd]=//)
-
-            NEWROOT=$(__resolve_uuid_to_block "$UUID")
+        if [ ! -z "$RESOLVER" ]; then
+            NEWROOT=$($RESOLVER "$OLDROOT")
             if [ -z "$NEWROOT" ]; then
-                warn "Unable to resolve UUID $UUID"
+                warn "Unable to resolve $ROOT"
             else
-                info "Resolved $UUID to $NEWROOT"
+                info "Resolved $OLDROOT to $NEWROOT"
                 ROOT="$NEWROOT"
             fi
         fi
